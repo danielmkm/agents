@@ -8,13 +8,15 @@ devcontainer helper for this template.
 usage:
   devc <repo>            install template, devcontainer up, then tmux
   devc install <repo>    install template only
-  devc rebuild <repo>    clear build cache, then up + tmux
+  devc rebuild <repo>    recreate the container, then up + tmux
+  devc fresh <repo>      rebuild with --build-no-cache (bust docker cache)
   devc exec <repo> -- <cmd>
   devc self-install      install devc + template into ~/.local
 
 notes:
   - install and default run overwrite .devcontainer in the target repo
-  - rebuild keeps named volumes (history, auth) intact
+  - rebuild/fresh keep named volumes (history, auth) intact
+  - fresh forces image layers to rebuild (use when pinned-to-latest tools are stale)
   - if devcontainer cli is missing, we suggest how to install it
   - set DEVC_TEMPLATE_DIR to override the template source
 USAGE
@@ -136,7 +138,7 @@ case "$cmd" in
     self_install
     exit 0
     ;;
-  install|rebuild|exec)
+  install|rebuild|fresh|exec)
     ;;
   *)
     set -- "$cmd" "$@"
@@ -164,6 +166,12 @@ case "$cmd" in
     copy_template "$REPO_PATH" "$TEMPLATE_DIR"
     require_devcontainer_cli
     devcontainer up --workspace-folder "$REPO_PATH" --remove-existing-container
+    devcontainer exec --workspace-folder "$REPO_PATH" tmux new -As agent
+    ;;
+  fresh)
+    copy_template "$REPO_PATH" "$TEMPLATE_DIR"
+    require_devcontainer_cli
+    devcontainer up --workspace-folder "$REPO_PATH" --remove-existing-container --build-no-cache
     devcontainer exec --workspace-folder "$REPO_PATH" tmux new -As agent
     ;;
   up)

@@ -16,6 +16,13 @@ set -g __fish_git_prompt_showupstream none
 
 function fish_greeting
   echo "banteg/agents · autonomous coding sandbox"
+  echo "type 'yolo' to start claude code"
+end
+
+alias yolo 'claude --dangerously-skip-permissions --model claude-opus-4-7 --effort max'
+
+function ss --description 'list recent screenshots'
+  ls -t ~/screenshots/*.png 2>/dev/null | head -5
 end
 
 function fish_prompt
@@ -34,6 +41,7 @@ set -sg escape-time 10
 set -g mouse on
 set -g history-limit 200000
 set -g renumber-windows on
+set -g extended-keys on
 setw -g mode-keys vi
 
 # Keep new panes/windows in the same cwd
@@ -49,6 +57,7 @@ bind r source-file ~/.tmux.conf \\; display-message "tmux.conf reloaded"
 # Terminal features
 set -as terminal-features ",xterm-ghostty:RGB"
 set -as terminal-features ",xterm*:RGB"
+set -as terminal-features ",xterm*:extkeys"
 set -ga terminal-overrides ",xterm*:colors=256"
 set -ga terminal-overrides '*:Ss=\\E[%p1%d q:Se=\\E[ q'
 """
@@ -109,6 +118,11 @@ def ensure_global_gitignore(workspace: Path) -> None:
     if not excludes_path.is_absolute():
         excludes_path = (Path.home() / excludes_path).resolve()
 
+    # Remap host paths (e.g. /Users/x/.gitignore) to the container home dir.
+    home = Path.home()
+    if not str(excludes_path).startswith(str(home)):
+        excludes_path = home / excludes_path.name
+
     if excludes_path.exists():
         log(f"global core.excludesfile exists at {excludes_path}")
         return
@@ -122,6 +136,7 @@ def ensure_global_gitignore(workspace: Path) -> None:
 
     excludes_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, excludes_path)
+    run_git(["config", "--global", "core.excludesfile", str(excludes_path)], workspace)
     log(f"copied gitignore to {excludes_path}")
 
 
@@ -151,6 +166,38 @@ def ensure_claude_config() -> None:
     data = {"permissions": {"defaultMode": "bypassPermissions"}}
     claude_config.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     log(f"wrote default claude settings to {claude_config}")
+
+
+def ensure_karpathy_skill() -> None:
+    claude_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")))
+    skill_dir = claude_dir / "skills" / "karpathy-guidelines"
+    if skill_dir.exists():
+        log(f"skipping karpathy-guidelines skill (already installed at {skill_dir})")
+        return
+
+    log("installing karpathy-guidelines skill via npx")
+    result = subprocess.run(
+        [
+            "npx",
+            "--yes",
+            "skills",
+            "add",
+            "https://github.com/forrestchang/andrej-karpathy-skills",
+            "--global",
+            "--agent",
+            "claude-code",
+            "--skill",
+            "karpathy-guidelines",
+            "--yes",
+        ],
+        check=False,
+        stdin=subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        log(f"failed to install karpathy-guidelines skill (exit {result.returncode})")
+        return
+    log(f"installed karpathy-guidelines skill to {skill_dir}")
+
 
 
 def ensure_fish_config() -> None:
@@ -250,6 +297,7 @@ def main() -> None:
     ensure_global_gitignore(workspace)
     ensure_codex_config()
     ensure_claude_config()
+    ensure_karpathy_skill()
     ensure_fish_config()
     log("configured defaults for container use")
 
