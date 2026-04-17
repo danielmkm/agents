@@ -44,13 +44,22 @@
     "source=claude-code-config,target=/home/node/.claude,type=volume",
     "source=codex-config,target=/home/node/.codex,type=volume",
     "source=gh-config,target=/home/node/.config/gh,type=volume",
-    "source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,consistency=cached,readonly"
+    "source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,consistency=cached,readonly",
+    "source=${localEnv:HOME}/screenshots,target=/home/node/screenshots,type=bind,consistency=cached,readonly"
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
     "CLAUDE_CONFIG_DIR": "/home/node/.claude",
-    "CODEX_HOME": "/home/node/.codex"
+    "CODEX_HOME": "/home/node/.codex",
+    "PENCIL_CLI_KEY": "${localEnv:PENCIL_CLI_KEY}"
   },
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "appPort": [
+    "3000-3009:3000-3009",
+    "4000-4009:4000-4009",
+    "5173-5179:5173-5179",
+    "8000-8009:8000-8009",
+    "8080-8089:8080-8089"
+  ],
+ "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace"
 }
