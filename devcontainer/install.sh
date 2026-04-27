@@ -54,6 +54,37 @@ find_template_dir() {
   die "template dir not found (set DEVC_TEMPLATE_DIR or run devc self-install)"
 }
 
+assign_ports() {
+  local dest_json="$1"
+  python3 - "$dest_json" <<'PY'
+import json, socket, sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+
+socks = []
+ports = []
+try:
+    for _ in range(5):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", 0))
+        socks.append(s)
+        ports.append(s.getsockname()[1])
+finally:
+    for s in socks:
+        s.close()
+
+data["appPort"] = [f"{p}:{p}" for p in ports]
+env = data.setdefault("containerEnv", {})
+env["FORWARDED_PORTS"] = ",".join(str(p) for p in ports)
+env["PORT"] = str(ports[0])
+
+path.write_text(json.dumps(data, indent=2) + "\n")
+print(f"  assigned ports: {', '.join(str(p) for p in ports)}", file=sys.stderr)
+PY
+}
+
 copy_template() {
   local repo_path="$1"
   local src_dir="$2"
@@ -65,6 +96,8 @@ copy_template() {
     [[ -f "$src_dir/$f" ]] || die "missing template file: $src_dir/$f"
     cp -f "$src_dir/$f" "$dest_dir/$f"
   done
+
+  assign_ports "$dest_dir/devcontainer.json"
 
   local global_ignore=""
   if command -v git >/dev/null 2>&1; then
@@ -156,6 +189,11 @@ shift
 
 ensure_repo "$REPO_PATH"
 TEMPLATE_DIR="$(find_template_dir)"
+REPO_NAME="$(basename "$(cd "$REPO_PATH" && pwd)")"
+
+set_term_title() {
+  printf '\033]0;%s\007' "$1"
+}
 
 case "$cmd" in
   install)
@@ -166,18 +204,21 @@ case "$cmd" in
     copy_template "$REPO_PATH" "$TEMPLATE_DIR"
     require_devcontainer_cli
     devcontainer up --workspace-folder "$REPO_PATH" --remove-existing-container
+    set_term_title "$REPO_NAME"
     devcontainer exec --workspace-folder "$REPO_PATH" tmux new -As agent
     ;;
   fresh)
     copy_template "$REPO_PATH" "$TEMPLATE_DIR"
     require_devcontainer_cli
     devcontainer up --workspace-folder "$REPO_PATH" --remove-existing-container --build-no-cache
+    set_term_title "$REPO_NAME"
     devcontainer exec --workspace-folder "$REPO_PATH" tmux new -As agent
     ;;
   up)
     copy_template "$REPO_PATH" "$TEMPLATE_DIR"
     require_devcontainer_cli
     devcontainer up --workspace-folder "$REPO_PATH"
+    set_term_title "$REPO_NAME"
     devcontainer exec --workspace-folder "$REPO_PATH" tmux new -As agent
     ;;
   exec)

@@ -14,6 +14,23 @@ set -g __fish_git_prompt_showdirtystate 0
 set -g __fish_git_prompt_showuntrackedfiles 0
 set -g __fish_git_prompt_showupstream none
 
+# Auto-load workspace-scoped secrets (GH_TOKEN, SUPABASE_ACCESS_TOKEN, …)
+# from /workspace/.env.local so the gh CLI, supabase CLI, and git (via
+# `gh auth git-credential`) authenticate without a manual source step
+# each session. File is gitignored; token values never leave the host.
+if test -f /workspace/.env.local
+  for line in (cat /workspace/.env.local)
+    set -l trimmed (string trim -- $line)
+    if test -z "$trimmed"; or string match -q '#*' -- $trimmed
+      continue
+    end
+    set -l kv (string split -m 1 -- = $trimmed)
+    if test (count $kv) -eq 2
+      set -gx $kv[1] $kv[2]
+    end
+  end
+end
+
 function fish_greeting
   echo "banteg/agents · autonomous coding sandbox"
   echo "type 'yolo' to start claude code"
